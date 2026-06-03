@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LearnLink Admin Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #6a1b9a; margin-bottom: 20px; }
+        .card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #6a1b9a; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #8e24aa; }
+        .news-item, .paper-item { background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .delete-btn { background: #e53935; padding: 5px 10px; }
+        .delete-btn:hover { background: #c62828; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { padding: 10px 20px; background: #ddd; cursor: pointer; border-radius: 5px; }
+        .tab.active { background: #6a1b9a; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .success { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .download-link { color: #6a1b9a; text-decoration: none; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎓 LearnLink Admin Panel</h1>
+        
+        <div id="message"></div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('news')">📰 Post News</div>
+            <div class="tab" onclick="showTab('papers')">📚 Add Past Paper</div>
+            <div class="tab" onclick="showTab('view')">👁️ View Data</div>
+        </div>
+
+        <!-- News Tab -->
+        <div id="news-tab" class="tab-content active">
+            <div class="card">
+                <h2>Post New Announcement</h2>
+                <form id="newsForm">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="newsTitle" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Content</label>
+                        <textarea id="newsContent" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="newsCategory">
+                            <option value="BURSARY">Bursary</option>
+                            <option value="DEADLINE">Deadline</option>
+                            <option value="ANNOUNCEMENT">Announcement</option>
+                            <option value="EVENT">Event</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="newsDate">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="newsPinned"> Pin this post (show at top)
+                        </label>
+                    </div>
+                    <button type="submit">📢 Post Announcement</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Papers Tab -->
+        <div id="papers-tab" class="tab-content">
+            <div class="card">
+                <h2>Add Past Paper with PDF</h2>
+                <form id="paperForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>Subject</label>
+                        <select id="paperSubject">
+                            <option>Mathematics</option>
+                            <option>Physical Sciences</option>
+                            <option>English</option>
+                            <option>Life Sciences</option>
+                            <option>History</option>
+                            <option>Geography</option>
+                            <option>Accounting</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Grade</label>
+                        <select id="paperGrade">
+                            <option>Grade 10</option>
+                            <option>Grade 11</option>
+                            <option>Grade 12</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Year</label>
+                        <input type="number" id="paperYear" value="2025" min="2010" max="2026">
+                    </div>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="paperTitle" placeholder="e.g., Mathematics Paper 1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="paperType">
+                            <option>Question Paper</option>
+                            <option>Memo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>PDF File (max 10MB)</label>
+                        <input type="file" id="paperPdf" accept=".pdf" required>
+                    </div>
+                    <button type="submit">📄 Upload & Add Paper</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- View Data Tab -->
+        <div id="view-tab" class="tab-content">
+            <div class="card">
+                <h2>Current News Posts</h2>
+                <div id="newsList"></div>
+                <h2 style="margin-top: 20px;">Past Papers</h2>
+                <div id="papersList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        function showMessage(text, isError = false) {
+            const msgDiv = document.getElementById('message');
+            msgDiv.innerHTML = `<div class="${isError ? 'error' : 'success'}">${text}</div>`;
+            setTimeout(() => {
+                msgDiv.innerHTML = '';
+            }, 3000);
+        }
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'news') {
+                document.getElementById('news-tab').classList.add('active');
+                event.target.classList.add('active');
+            } else if (tab === 'papers') {
+                document.getElementById('papers-tab').classList.add('active');
+                event.target.classList.add('active');
+            } else if (tab === 'view') {
+                document.getElementById('view-tab').classList.add('active');
+                event.target.classList.add('active');
+                loadData();
+            }
+        }
+
+        async function loadData() {
+            // Load news
+            const newsRes = await fetch(`${API_URL}/news`);
+            const news = await newsRes.json();
+            document.getElementById('newsList').innerHTML = news.map(n => `
+                <div class="news-item">
+                    <div>
+                        <strong>${escapeHtml(n.title)}</strong><br>
+                        <small>${n.category} | ${n.date}</small>
+                        <p>${escapeHtml(n.content)}</p>
+                    </div>
+                    <button class="delete-btn" onclick="deleteNews(${n.id})">Delete</button>
+                </div>
+            `).join('');
+
+            // Load papers
+            const papersRes = await fetch(`${API_URL}/papers`);
+            const papers = await papersRes.json();
+            document.getElementById('papersList').innerHTML = papers.map(p => `
+                <div class="paper-item">
+                    <div>
+                        <strong>${escapeHtml(p.title)}</strong><br>
+                        <small>${p.subject} | ${p.grade} | ${p.year} | ${p.type}</small>
+                        <br>
+                        <a href="${API_URL.replace('/api', '')}${p.filepath}" target="_blank" class="download-link">📄 View PDF</a>
+                    </div>
+                    <button class="delete-btn" onclick="deletePaper(${p.id})">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function deleteNews(id) {
+            if (confirm('Delete this news post?')) {
+                const res = await fetch(`${API_URL}/news/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showMessage('News deleted successfully');
+                    loadData();
+                } else {
+                    showMessage('Failed to delete news', true);
+                }
+            }
+        }
+
+        async function deletePaper(id) {
+            if (confirm('Delete this past paper?')) {
+                const res = await fetch(`${API_URL}/papers/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    showMessage('Paper deleted successfully');
+                    loadData();
+                } else {
+                    showMessage('Failed to delete paper', true);
+                }
+            }
+        }
+
+        // News form submission
+        document.getElementById('newsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = {
+                title: document.getElementById('newsTitle').value,
+                content: document.getElementById('newsContent').value,
+                category: document.getElementById('newsCategory').value,
+                date: document.getElementById('newsDate').value || new Date().toISOString().split('T')[0],
+                isPinned: document.getElementById('newsPinned').checked ? 1 : 0
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/news`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (res.ok) {
+                    showMessage('News posted successfully!');
+                    document.getElementById('newsForm').reset();
+                } else {
+                    showMessage('Failed to post news', true);
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, true);
+            }
+        });
+
+        // Paper form submission with file upload
+        document.getElementById('paperForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('subject', document.getElementById('paperSubject').value);
+            formData.append('grade', document.getElementById('paperGrade').value);
+            formData.append('year', document.getElementById('paperYear').value);
+            formData.append('title', document.getElementById('paperTitle').value);
+            formData.append('type', document.getElementById('paperType').value);
+            formData.append('pdf', document.getElementById('paperPdf').files[0]);
+
+            try {
+                const res = await fetch(`${API_URL}/papers`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await res.json();
+                
+                if (res.ok) {
+                    showMessage('Paper uploaded successfully!');
+                    document.getElementById('paperForm').reset();
+                } else {
+                    showMessage(result.error || 'Failed to upload paper', true);
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, true);
+            }
+        });
+    </script>
+</body>
+</html>
