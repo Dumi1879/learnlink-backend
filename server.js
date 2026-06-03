@@ -36,7 +36,9 @@ app.use(express.static('public'));
 app.use('/uploads', express.static(uploadsDir));
 
 // Database
-const db = new sqlite3.Database('./learnlink.db');
+const path = require('path');
+const dbPath = process.env.DATABASE_PATH || '/data/learnlink.db';
+const db = new sqlite3.Database(dbPath);
 
 // Create tables
 db.run(`CREATE TABLE IF NOT EXISTS news (
