@@ -2,39 +2,20 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
-const multer = require('multer');
 const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }
-});
-
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/uploads', express.static(uploadsDir));
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'learnlink.db');
-const db = new sqlite3.Database(dbPath);
+// Database setup
+const db = new sqlite3.Database('./learnlink.db');
 
+// Create tables
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS news (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,10 +38,7 @@ db.serialize(() => {
     )`);
 });
 
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
-});
-
+// Routes
 app.get('/api/news', (req, res) => {
     db.all('SELECT * FROM news ORDER BY date DESC', (err, rows) => {
         if (err) {
@@ -102,11 +80,8 @@ app.get('/api/papers', (req, res) => {
     });
 });
 
-app.post('/api/papers', upload.single('pdf'), (req, res) => {
-    const { subject, grade, year, title, type } = req.body;
-    const filename = req.file ? req.file.originalname : '';
-    const filepath = req.file ? `/uploads/${req.file.filename}` : '';
-    
+app.post('/api/papers', (req, res) => {
+    const { subject, grade, year, title, type, filename, filepath } = req.body;
     db.run(
         'INSERT INTO papers (subject, grade, year, title, type, filename, filepath) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [subject, grade, year, title, type, filename, filepath],
@@ -126,6 +101,12 @@ app.delete('/api/papers/:id', (req, res) => {
     });
 });
 
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
+
+// Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);
 });
