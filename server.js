@@ -27,7 +27,7 @@ db.serialize(() => {
         isPinned INTEGER DEFAULT 0
     )`);
 
-    // Papers table with download_link instead of filepath
+    // Create papers table with download_link
     db.run(`CREATE TABLE IF NOT EXISTS papers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject TEXT NOT NULL,
@@ -36,15 +36,23 @@ db.serialize(() => {
         title TEXT NOT NULL,
         type TEXT NOT NULL,
         download_link TEXT
-    )`);
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating papers table:', err);
+        } else {
+            console.log('Papers table ready with download_link column');
+        }
+    });
 
-    // Insert sample data if tables are empty
+    // Insert sample data if news table is empty
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
         if (row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
                 ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed! Start by posting announcements.', 'ANNOUNCEMENT', '${new Date().toISOString().split('T')[0]}', 1),
                 ('📚 How to Use', 'Post news here. Students will see it instantly.', 'ANNOUNCEMENT', '${new Date().toISOString().split('T')[0]}', 0)
-            `);
+            `, (err) => {
+                if (err) console.error('Error inserting sample news:', err);
+            });
         }
     });
 });
@@ -110,6 +118,11 @@ app.get('/api/papers', (req, res) => {
 app.post('/api/papers', (req, res) => {
     const { subject, grade, year, title, type, download_link } = req.body;
     console.log('Received paper:', { subject, grade, year, title, type, download_link });
+    
+    // Validate required fields
+    if (!subject || !grade || !year || !title || !type) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
     
     db.run(
         'INSERT INTO papers (subject, grade, year, title, type, download_link) VALUES (?, ?, ?, ?, ?, ?)',

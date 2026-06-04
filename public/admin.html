@@ -253,6 +253,15 @@
             word-break: break-all;
             margin-top: 5px;
         }
+
+        .link-preview a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        .link-preview a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -262,7 +271,7 @@
                 🎓 LearnLink Admin Panel
                 <span id="apiStatus" class="status-badge status-online">● Online</span>
             </h1>
-            <button id="refreshStatusBtn" class="refresh-btn" onclick="checkAPIStatus()">🔄 Check Status</button>
+            <button class="refresh-btn" onclick="checkAPIStatus()">🔄 Check Status</button>
         </div>
         
         <div id="messageContainer"></div>
@@ -398,8 +407,15 @@
             if (link && (link.startsWith('http://') || link.startsWith('https://'))) {
                 previewDiv.style.display = 'block';
                 previewDiv.innerHTML = `🔗 Will open: <a href="${link}" target="_blank">${link.substring(0, 60)}${link.length > 60 ? '...' : ''}</a>`;
+            } else if (link) {
+                previewDiv.style.display = 'block';
+                previewDiv.innerHTML = `⚠️ Please enter a valid URL starting with http:// or https://`;
+                previewDiv.style.background = '#f8d7da';
+                previewDiv.style.color = '#721c24';
             } else {
                 previewDiv.style.display = 'none';
+                previewDiv.style.background = '#e8f0fe';
+                previewDiv.style.color = '#666';
             }
         });
 
@@ -430,7 +446,7 @@
             container.innerHTML = `<div class="${isError ? 'error' : 'success'}">${text}</div>`;
             setTimeout(() => {
                 container.innerHTML = '';
-            }, 3000);
+            }, 4000);
         }
 
         function showTab(tabName) {
@@ -552,6 +568,7 @@
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -575,6 +592,7 @@
             }
 
             const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
             submitBtn.textContent = 'Posting...';
             submitBtn.disabled = true;
 
@@ -598,7 +616,7 @@
             } catch (error) {
                 showMessage('❌ Error: ' + error.message, true);
             } finally {
-                submitBtn.textContent = '📢 Post Announcement';
+                submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             }
         });
@@ -630,6 +648,7 @@
             }
 
             const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
             submitBtn.textContent = 'Adding...';
             submitBtn.disabled = true;
 
@@ -654,13 +673,14 @@
             } catch (error) {
                 showMessage('❌ Error: ' + error.message, true);
             } finally {
-                submitBtn.textContent = '📄 Add Paper';
+                submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             }
         });
 
         // Set default date
-        document.getElementById('newsDate').value = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('newsDate').value = today;
     </script>
 </body>
 </html>
