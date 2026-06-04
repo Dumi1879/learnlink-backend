@@ -6,15 +6,15 @@ const multer = require('multer');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-// Create uploads folder
+// Create uploads folder if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
+    fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer
+// Configure multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadsDir);
@@ -35,31 +35,37 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static(uploadsDir));
 
-// Database
-const path = require('path');
-const dbPath = process.env.DATABASE_PATH || '/data/learnlink.db';
+// Database setup
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'learnlink.db');
 const db = new sqlite3.Database(dbPath);
 
 // Create tables
-db.run(`CREATE TABLE IF NOT EXISTS news (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    content TEXT,
-    category TEXT,
-    date TEXT,
-    isPinned INTEGER
-)`);
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS news (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        content TEXT,
+        category TEXT,
+        date TEXT,
+        isPinned INTEGER
+    )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS papers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    subject TEXT,
-    grade TEXT,
-    year INTEGER,
-    title TEXT,
-    type TEXT,
-    filename TEXT,
-    filepath TEXT
-)`);
+    db.run(`CREATE TABLE IF NOT EXISTS papers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject TEXT,
+        grade TEXT,
+        year INTEGER,
+        title TEXT,
+        type TEXT,
+        filename TEXT,
+        filepath TEXT
+    )`);
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
 
 // API Routes
 app.get('/api/news', (req, res) => {
@@ -104,9 +110,6 @@ app.get('/api/papers', (req, res) => {
 });
 
 app.post('/api/papers', upload.single('pdf'), (req, res) => {
-    console.log('File received:', req.file);
-    console.log('Body:', req.body);
-    
     const { subject, grade, year, title, type } = req.body;
     const filename = req.file ? req.file.originalname : '';
     const filepath = req.file ? `/uploads/${req.file.filename}` : '';
@@ -116,7 +119,6 @@ app.post('/api/papers', upload.single('pdf'), (req, res) => {
         [subject, grade, year, title, type, filename, filepath],
         function(err) {
             if (err) {
-                console.error('Database error:', err);
                 res.status(500).json({ error: err.message });
             } else {
                 res.json({ success: true, id: this.lastID });
@@ -132,5 +134,5 @@ app.delete('/api/papers/:id', (req, res) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running on port ${port}`);
 });
