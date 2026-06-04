@@ -8,13 +8,11 @@ const fs = require('fs');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Create uploads folder if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadsDir);
@@ -29,17 +27,14 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static(uploadsDir));
 
-// Database setup
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'learnlink.db');
 const db = new sqlite3.Database(dbPath);
 
-// Create tables
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS news (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,12 +57,10 @@ db.serialize(() => {
     )`);
 });
 
-// Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
 });
 
-// API Routes
 app.get('/api/news', (req, res) => {
     db.all('SELECT * FROM news ORDER BY date DESC', (err, rows) => {
         if (err) {
