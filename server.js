@@ -1,109 +1,50 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
+// Enable CORS for all requests
 app.use(cors());
 app.use(express.json());
+
+// Serve static files (admin panel)
 app.use(express.static('public'));
 
-// Database setup
-const db = new sqlite3.Database('./learnlink.db');
-
-// Create tables
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS news (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        content TEXT,
-        category TEXT,
-        date TEXT,
-        isPinned INTEGER
-    )`);
-
-    db.run(`CREATE TABLE IF NOT EXISTS papers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        subject TEXT,
-        grade TEXT,
-        year INTEGER,
-        title TEXT,
-        type TEXT,
-        filename TEXT,
-        filepath TEXT
-    )`);
-});
-
-// Routes
+// News endpoint
 app.get('/api/news', (req, res) => {
-    db.all('SELECT * FROM news ORDER BY date DESC', (err, rows) => {
-        if (err) {
-            res.json([]);
-        } else {
-            res.json(rows);
+    res.json([
+        {
+            id: 1,
+            title: '🎓 Welcome to LearnLink!',
+            content: 'Your app is successfully deployed on Render!',
+            category: 'ANNOUNCEMENT',
+            date: new Date().toISOString().split('T')[0],
+            isPinned: 1
+        },
+        {
+            id: 2,
+            title: '📚 Past Papers Coming Soon',
+            content: 'Upload past papers from the admin panel',
+            category: 'ANNOUNCEMENT',
+            date: new Date().toISOString().split('T')[0],
+            isPinned: 0
         }
-    });
+    ]);
 });
 
-app.post('/api/news', (req, res) => {
-    const { title, content, category, date, isPinned } = req.body;
-    db.run(
-        'INSERT INTO news (title, content, category, date, isPinned) VALUES (?, ?, ?, ?, ?)',
-        [title, content, category, date, isPinned || 0],
-        function(err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ success: true, id: this.lastID });
-            }
-        }
-    );
-});
-
-app.delete('/api/news/:id', (req, res) => {
-    db.run('DELETE FROM news WHERE id = ?', req.params.id, () => {
-        res.json({ success: true });
-    });
-});
-
+// Papers endpoint
 app.get('/api/papers', (req, res) => {
-    db.all('SELECT * FROM papers', (err, rows) => {
-        if (err) {
-            res.json([]);
-        } else {
-            res.json(rows);
-        }
-    });
-});
-
-app.post('/api/papers', (req, res) => {
-    const { subject, grade, year, title, type, filename, filepath } = req.body;
-    db.run(
-        'INSERT INTO papers (subject, grade, year, title, type, filename, filepath) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [subject, grade, year, title, type, filename, filepath],
-        function(err) {
-            if (err) {
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ success: true, id: this.lastID });
-            }
-        }
-    );
-});
-
-app.delete('/api/papers/:id', (req, res) => {
-    db.run('DELETE FROM papers WHERE id = ?', req.params.id, () => {
-        res.json({ success: true });
-    });
+    res.json([]);
 });
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({ message: 'LearnLink API is running!' });
 });
 
 // Start server
