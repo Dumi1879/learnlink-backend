@@ -239,6 +239,20 @@
             justify-content: space-between;
             margin-bottom: 20px;
         }
+
+        small {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .link-preview {
+            background: #e8f0fe;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -295,7 +309,7 @@
             </div>
         </div>
 
-        <!-- Papers Tab -->
+        <!-- Papers Tab with Download Link -->
         <div id="papers-tab" class="tab-content">
             <div class="card">
                 <h2>Add Past Paper</h2>
@@ -311,6 +325,8 @@
                             <option value="Geography">Geography</option>
                             <option value="Accounting">Accounting</option>
                             <option value="Business Studies">Business Studies</option>
+                            <option value="Economics">Economics</option>
+                            <option value="Information Technology">Information Technology</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -337,9 +353,10 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>PDF Filename (optional)</label>
-                        <input type="text" id="paperFilename" placeholder="e.g., math_p1_2025.pdf">
-                        <small style="color: #666; display: block; margin-top: 4px;">Enter the filename if you have uploaded it manually</small>
+                        <label>Download Link *</label>
+                        <input type="url" id="paperLink" required placeholder="https://example.com/math-paper-2025.pdf">
+                        <small>🔗 Paste the direct download link to the PDF (Google Drive, Dropbox, school website, etc.)</small>
+                        <div id="linkPreview" class="link-preview" style="display: none;"></div>
                     </div>
                     <button type="submit">📄 Add Paper</button>
                 </form>
@@ -373,6 +390,18 @@
     <script>
         // API URL - automatically detect from current location
         const API_URL = window.location.origin + '/api';
+
+        // Link preview
+        document.getElementById('paperLink').addEventListener('input', function() {
+            const link = this.value;
+            const previewDiv = document.getElementById('linkPreview');
+            if (link && (link.startsWith('http://') || link.startsWith('https://'))) {
+                previewDiv.style.display = 'block';
+                previewDiv.innerHTML = `🔗 Will open: <a href="${link}" target="_blank">${link.substring(0, 60)}${link.length > 60 ? '...' : ''}</a>`;
+            } else {
+                previewDiv.style.display = 'none';
+            }
+        });
 
         // Check API status on load
         checkAPIStatus();
@@ -480,6 +509,7 @@
                             <div class="item-meta">
                                 📚 ${item.subject} • ${item.grade} • ${item.year} • ${item.type}
                             </div>
+                            ${item.download_link ? `<div class="item-meta" style="color: #0066cc;">🔗 <a href="${escapeHtml(item.download_link)}" target="_blank">${escapeHtml(item.download_link.substring(0, 50))}${item.download_link.length > 50 ? '...' : ''}</a></div>` : '<div class="item-meta" style="color: #ff9800;">⚠️ No download link provided</div>'}
                         </div>
                         <button class="delete-btn" onclick="deletePaper(${item.id})">🗑️ Delete</button>
                     </div>
@@ -573,9 +603,17 @@
             }
         });
 
-        // Paper Form Submission
+        // Paper Form Submission with Download Link
         document.getElementById('paperForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            const downloadLink = document.getElementById('paperLink').value.trim();
+            
+            // Validate URL
+            if (!downloadLink.startsWith('http://') && !downloadLink.startsWith('https://')) {
+                showMessage('❌ Please enter a valid URL starting with http:// or https://', true);
+                return;
+            }
             
             const formData = {
                 subject: document.getElementById('paperSubject').value,
@@ -583,8 +621,7 @@
                 year: parseInt(document.getElementById('paperYear').value),
                 title: document.getElementById('paperTitle').value.trim(),
                 type: document.getElementById('paperType').value,
-                filename: document.getElementById('paperFilename').value || '',
-                filepath: document.getElementById('paperFilename').value ? `/uploads/${document.getElementById('paperFilename').value}` : ''
+                download_link: downloadLink
             };
 
             if (!formData.title) {
@@ -609,6 +646,7 @@
                     showMessage('✅ Paper added successfully!');
                     document.getElementById('paperForm').reset();
                     document.getElementById('paperYear').value = '2025';
+                    document.getElementById('linkPreview').style.display = 'none';
                     loadPapers();
                 } else {
                     showMessage('❌ Failed to add paper: ' + (result.error || 'Unknown error'), true);

@@ -15,8 +15,9 @@ app.use(express.static('public'));
 // Database setup
 const db = new sqlite3.Database('./learnlink.db');
 
-// Create tables
+// Create tables with download_link field
 db.serialize(() => {
+    // News table
     db.run(`CREATE TABLE IF NOT EXISTS news (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -26,6 +27,7 @@ db.serialize(() => {
         isPinned INTEGER DEFAULT 0
     )`);
 
+    // Papers table with download_link instead of filepath
     db.run(`CREATE TABLE IF NOT EXISTS papers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject TEXT NOT NULL,
@@ -33,11 +35,10 @@ db.serialize(() => {
         year INTEGER NOT NULL,
         title TEXT NOT NULL,
         type TEXT NOT NULL,
-        filename TEXT,
-        filepath TEXT
+        download_link TEXT
     )`);
 
-    // Insert sample data if table is empty
+    // Insert sample data if tables are empty
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
         if (row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
@@ -97,6 +98,7 @@ app.delete('/api/news/:id', (req, res) => {
 app.get('/api/papers', (req, res) => {
     db.all('SELECT * FROM papers ORDER BY year DESC', (err, rows) => {
         if (err) {
+            console.error('Database error:', err);
             res.status(500).json({ error: err.message });
         } else {
             res.json(rows);
@@ -104,16 +106,20 @@ app.get('/api/papers', (req, res) => {
     });
 });
 
-// POST new paper
+// POST new paper with DOWNLOAD LINK
 app.post('/api/papers', (req, res) => {
-    const { subject, grade, year, title, type, filename, filepath } = req.body;
+    const { subject, grade, year, title, type, download_link } = req.body;
+    console.log('Received paper:', { subject, grade, year, title, type, download_link });
+    
     db.run(
-        'INSERT INTO papers (subject, grade, year, title, type, filename, filepath) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [subject, grade, year, title, type, filename || '', filepath || ''],
+        'INSERT INTO papers (subject, grade, year, title, type, download_link) VALUES (?, ?, ?, ?, ?, ?)',
+        [subject, grade, year, title, type, download_link || ''],
         function(err) {
             if (err) {
+                console.error('Database insert error:', err);
                 res.status(500).json({ error: err.message });
             } else {
+                console.log('Paper inserted with ID:', this.lastID);
                 res.json({ success: true, id: this.lastID });
             }
         }
