@@ -36,6 +36,25 @@ db.serialize(() => {
         type TEXT NOT NULL,
         download_link TEXT
     )`);
+// Add Comments table
+db.run(`CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    news_id INTEGER NOT NULL,
+    student_name TEXT NOT NULL,
+    student_avatar TEXT,
+    comment TEXT NOT NULL,
+    likes INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE
+)`);
+
+// Add Comment Likes table
+db.run(`CREATE TABLE IF NOT EXISTS comment_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comment_id INTEGER NOT NULL,
+    student_name TEXT NOT NULL,
+    FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
+)`);
 
     // Insert sample data if news table is empty
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
@@ -72,6 +91,84 @@ app.post('/api/news', (req, res) => {
                 res.status(500).json({ error: err.message });
             } else {
                 res.json({ success: true, id: this.lastID });
+            }
+        }
+    );
+});
+
+// ============ COMMENT ROUTES ============
+
+// GET comments for a news post
+app.get('/api/comments/:newsId', (req, res) => {
+    const { newsId } = req.params;
+    db.all(
+        'SELECT * FROM comments WHERE news_id = ? ORDER BY created_at DESC',
+        [newsId],
+        (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+            } else {
+                res.json(rows);
+            }
+        }
+    );
+});
+
+// POST a new comment
+app.post('/api/comments', (req, res) => {
+    const { news_id, student_name, student_avatar, comment, created_at } = req.body;
+    
+    db.run(
+        'INSERT INTO comments (news_id, student_name, student_avatar, comment, likes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [news_id, student_name, student_avatar || '', comment, 0, created_at],
+        function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+            } else {
+                res.json({ success: true, id: this.lastID });
+            }
+        }
+    );
+});
+
+// DELETE a comment
+app.delete('/api/comments/:id', (req, res) => {
+    db.run('DELETE FROM comments WHERE id = ?', req.params.id, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ success: true });
+        }
+    });
+});
+
+// LIKE a comment
+app.post('/api/comments/like', (req, res) => {
+    const { comment_id, student_name } = req.body;
+    
+    // Check if already liked
+    db.get(
+        'SELECT * FROM comment_likes WHERE comment_id = ? AND student_name = ?',
+        [comment_id, student_name],
+        (err, row) => {
+            if (row) {
+                // Unlike
+                db.run('DELETE FROM comment_likes WHERE comment_id = ? AND student_name = ?',
+                    [comment_id, student_name],
+                    (err2) => {
+                        db.run('UPDATE comments SET likes = likes - 1 WHERE id = ?', [comment_id]);
+                        res.json({ success: true, action: 'unliked' });
+                    }
+                );
+            } else {
+                // Like
+                db.run('INSERT INTO comment_likes (comment_id, student_name) VALUES (?, ?)',
+                    [comment_id, student_name],
+                    (err2) => {
+                        db.run('UPDATE comments SET likes = likes + 1 WHERE id = ?', [comment_id]);
+                        res.json({ success: true, action: 'liked' });
+                    }
+                );
             }
         }
     );
