@@ -14,7 +14,7 @@ app.use(express.static('public'));
 // Database setup
 const db = new sqlite3.Database('./learnlink.db');
 
-// Create tables with correct schema
+// Create all tables with proper schema
 db.serialize(() => {
     // News table
     db.run(`CREATE TABLE IF NOT EXISTS news (
@@ -26,7 +26,7 @@ db.serialize(() => {
         isPinned INTEGER DEFAULT 0
     )`);
 
-    // Papers table - with download_link column
+    // Papers table
     db.run(`CREATE TABLE IF NOT EXISTS papers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject TEXT NOT NULL,
@@ -36,31 +36,35 @@ db.serialize(() => {
         type TEXT NOT NULL,
         download_link TEXT
     )`);
-// Add Comments table
-db.run(`CREATE TABLE IF NOT EXISTS comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    news_id INTEGER NOT NULL,
-    student_name TEXT NOT NULL,
-    student_avatar TEXT,
-    comment TEXT NOT NULL,
-    likes INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE
-)`);
 
-// Add Comment Likes table
-db.run(`CREATE TABLE IF NOT EXISTS comment_likes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    comment_id INTEGER NOT NULL,
-    student_name TEXT NOT NULL,
-    FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
-)`);
+    // Comments table with parent_id for nested replies
+    db.run(`CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        news_id INTEGER NOT NULL,
+        parent_id INTEGER DEFAULT NULL,
+        student_name TEXT NOT NULL,
+        student_avatar TEXT,
+        comment TEXT NOT NULL,
+        likes INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+    )`);
+
+    // Comment likes table
+    db.run(`CREATE TABLE IF NOT EXISTS comment_likes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        comment_id INTEGER NOT NULL,
+        student_name TEXT NOT NULL,
+        FOREIGN KEY (comment_id) REFERENCES comments(id) ON DELETE CASCADE
+    )`);
 
     // Insert sample data if news table is empty
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
         if (!err && row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
-                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed!', 'ANNOUNCEMENT', date('now'), 1)
+                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed!', 'ANNOUNCEMENT', date('now'), 1),
+                ('📚 New Features Added', 'Comments and replies now available!', 'ANNOUNCEMENT', date('now'), 0)
             `);
         }
     });
@@ -96,13 +100,63 @@ app.post('/api/news', (req, res) => {
     );
 });
 
+// DELETE news
+app.delete('/api/news/:id', (req, res) => {
+    db.run('DELETE FROM news WHERE id = ?', req.params.id, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ success: true });
+        }
+    });
+});
+
+// GET all papers
+app.get('/api/papers', (req, res) => {
+    db.all('SELECT * FROM papers ORDER BY year DESC', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json(rows);
+        }
+    });
+});
+
+// POST new paper
+app.post('/api/papers', (req, res) => {
+    const { subject, grade, year, title, type, download_link } = req.body;
+    
+    db.run(
+        'INSERT INTO papers (subject, grade, year, title, type, download_link) VALUES (?, ?, ?, ?, ?, ?)',
+        [subject, grade, year, title, type, download_link || ''],
+        function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+            } else {
+                res.json({ success: true, id: this.lastID });
+            }
+        }
+    );
+});
+
+// DELETE paper
+app.delete('/api/papers/:id', (req, res) => {
+    db.run('DELETE FROM papers WHERE id = ?', req.params.id, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+        } else {
+            res.json({ success: true });
+        }
+    });
+});
+
 // ============ COMMENT ROUTES ============
 
-// GET comments for a news post
+// GET all comments for a news post (including replies)
 app.get('/api/comments/:newsId', (req, res) => {
     const { newsId } = req.params;
     db.all(
-        'SELECT * FROM comments WHERE news_id = ? ORDER BY created_at DESC',
+        `SELECT * FROM comments WHERE news_id = ? ORDER BY created_at ASC`,
         [newsId],
         (err, rows) => {
             if (err) {
@@ -114,15 +168,17 @@ app.get('/api/comments/:newsId', (req, res) => {
     );
 });
 
-// POST a new comment
+// POST a new comment or reply
 app.post('/api/comments', (req, res) => {
-    const { news_id, student_name, student_avatar, comment, created_at } = req.body;
+    const { news_id, parent_id, student_name, student_avatar, comment, created_at } = req.body;
     
     db.run(
-        'INSERT INTO comments (news_id, student_name, student_avatar, comment, likes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [news_id, student_name, student_avatar || '', comment, 0, created_at],
+        `INSERT INTO comments (news_id, parent_id, student_name, student_avatar, comment, likes, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [news_id, parent_id || null, student_name, student_avatar || '', comment, 0, created_at],
         function(err) {
             if (err) {
+                console.error('Database error:', err);
                 res.status(500).json({ error: err.message });
             } else {
                 res.json({ success: true, id: this.lastID });
@@ -131,7 +187,7 @@ app.post('/api/comments', (req, res) => {
     );
 });
 
-// DELETE a comment
+// DELETE a comment (cascade will delete replies automatically)
 app.delete('/api/comments/:id', (req, res) => {
     db.run('DELETE FROM comments WHERE id = ?', req.params.id, function(err) {
         if (err) {
@@ -142,15 +198,19 @@ app.delete('/api/comments/:id', (req, res) => {
     });
 });
 
-// LIKE a comment
+// LIKE or UNLIKE a comment
 app.post('/api/comments/like', (req, res) => {
     const { comment_id, student_name } = req.body;
     
-    // Check if already liked
     db.get(
         'SELECT * FROM comment_likes WHERE comment_id = ? AND student_name = ?',
         [comment_id, student_name],
         (err, row) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
             if (row) {
                 // Unlike
                 db.run('DELETE FROM comment_likes WHERE comment_id = ? AND student_name = ?',
@@ -174,73 +234,22 @@ app.post('/api/comments/like', (req, res) => {
     );
 });
 
-// DELETE news
-app.delete('/api/news/:id', (req, res) => {
-    db.run('DELETE FROM news WHERE id = ?', req.params.id, function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else {
-            res.json({ success: true });
-        }
-    });
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
 });
 
-// GET all papers
-app.get('/api/papers', (req, res) => {
-    db.all('SELECT * FROM papers ORDER BY year DESC', (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else {
-            res.json(rows);
-        }
-    });
-});
-
-// POST new paper with download_link
-app.post('/api/papers', (req, res) => {
-    const { subject, grade, year, title, type, download_link } = req.body;
-    
-    db.run(
-        'INSERT INTO papers (subject, grade, year, title, type, download_link) VALUES (?, ?, ?, ?, ?, ?)',
-        [subject, grade, year, title, type, download_link || ''],
-        function(err) {
-            if (err) {
-                console.error('Database error:', err);
-                res.status(500).json({ error: err.message });
-            } else {
-                res.json({ success: true, id: this.lastID });
-            }
-        }
-    );
-});
-
-// DELETE paper
-app.delete('/api/papers/:id', (req, res) => {
-    db.run('DELETE FROM papers WHERE id = ?', req.params.id, function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-        } else {
-            res.json({ success: true });
-        }
-    });
-});
-
-// FIX ENDPOINT - Add download_link column if missing
+// Fix database endpoint
 app.get('/fix-database', (req, res) => {
     db.run("ALTER TABLE papers ADD COLUMN download_link TEXT", (err) => {
         if (err && err.message.includes('duplicate column name')) {
-            res.json({ message: '✅ Column already exists! Database is ready.' });
+            res.json({ message: '✅ Column already exists!' });
         } else if (err) {
             res.json({ error: err.message });
         } else {
             res.json({ message: '✅ Successfully added download_link column!' });
         }
     });
-});
-
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
 });
 
 app.listen(port, '0.0.0.0', () => {
