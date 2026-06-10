@@ -11,12 +11,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Database setup - SAFE: Only adds columns, never deletes data
+// Database setup
 const db = new sqlite3.Database('./learnlink.db');
 
-// Safe schema updates
+// Create tables with correct schema
 db.serialize(() => {
-    // News table (preserve all existing data)
+    // News table
     db.run(`CREATE TABLE IF NOT EXISTS news (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -24,15 +24,9 @@ db.serialize(() => {
         category TEXT NOT NULL,
         date TEXT NOT NULL,
         isPinned INTEGER DEFAULT 0
-    )`, (err) => {
-        if (err) {
-            console.error('Error creating news table:', err);
-        } else {
-            console.log('✓ News table ready');
-        }
-    });
+    )`);
 
-    // Papers table (preserve all existing data)
+    // Papers table - with download_link column
     db.run(`CREATE TABLE IF NOT EXISTS papers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subject TEXT NOT NULL,
@@ -41,42 +35,14 @@ db.serialize(() => {
         title TEXT NOT NULL,
         type TEXT NOT NULL,
         download_link TEXT
-    )`, (err) => {
-        if (err) {
-            console.error('Error creating papers table:', err);
-        } else {
-            console.log('✓ Papers table ready');
-        }
-    });
+    )`);
 
-    // ONLY ADD NEW COLUMNS IF THEY DON'T EXIST (Safe migration)
-    db.all("PRAGMA table_info(news)", (err, columns) => {
-        if (!err && columns) {
-            const hasViews = columns.some(col => col.name === 'views');
-            if (!hasViews) {
-                db.run("ALTER TABLE news ADD COLUMN views INTEGER DEFAULT 0", (err2) => {
-                    if (err2) {
-                        console.log('Views column might already exist or error:', err2.message);
-                    } else {
-                        console.log('✓ Added views column to news');
-                    }
-                });
-            }
-        }
-    });
-
-    // Insert sample data ONLY if table is completely empty
+    // Insert sample data if news table is empty
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
         if (!err && row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
-                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed! Start by posting announcements.', 'ANNOUNCEMENT', date('now'), 1)
-            `, (err2) => {
-                if (err2) {
-                    console.error('Error inserting sample news:', err2);
-                } else {
-                    console.log('✓ Sample news inserted (first time only)');
-                }
-            });
+                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed!', 'ANNOUNCEMENT', date('now'), 1)
+            `);
         }
     });
 });
@@ -87,7 +53,6 @@ db.serialize(() => {
 app.get('/api/news', (req, res) => {
     db.all('SELECT * FROM news ORDER BY isPinned DESC, date DESC', (err, rows) => {
         if (err) {
-            console.error('Database error:', err);
             res.status(500).json({ error: err.message });
         } else {
             res.json(rows);
@@ -104,7 +69,6 @@ app.post('/api/news', (req, res) => {
         [title, content, category, date, isPinned || 0],
         function(err) {
             if (err) {
-                console.error('Database insert error:', err);
                 res.status(500).json({ error: err.message });
             } else {
                 res.json({ success: true, id: this.lastID });
@@ -128,7 +92,6 @@ app.delete('/api/news/:id', (req, res) => {
 app.get('/api/papers', (req, res) => {
     db.all('SELECT * FROM papers ORDER BY year DESC', (err, rows) => {
         if (err) {
-            console.error('Database error:', err);
             res.status(500).json({ error: err.message });
         } else {
             res.json(rows);
@@ -136,7 +99,7 @@ app.get('/api/papers', (req, res) => {
     });
 });
 
-// POST new paper
+// POST new paper with download_link
 app.post('/api/papers', (req, res) => {
     const { subject, grade, year, title, type, download_link } = req.body;
     
@@ -148,7 +111,6 @@ app.post('/api/papers', (req, res) => {
                 console.error('Database error:', err);
                 res.status(500).json({ error: err.message });
             } else {
-                console.log('Paper added with ID:', this.lastID);
                 res.json({ success: true, id: this.lastID });
             }
         }
@@ -166,19 +128,24 @@ app.delete('/api/papers/:id', (req, res) => {
     });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-    db.get('SELECT COUNT(*) as count FROM papers', (err, row) => {
-        res.json({ 
-            status: 'ok', 
-            papers: row?.count || 0,
-            message: 'Database is working'
-        });
+// FIX ENDPOINT - Add download_link column if missing
+app.get('/fix-database', (req, res) => {
+    db.run("ALTER TABLE papers ADD COLUMN download_link TEXT", (err) => {
+        if (err && err.message.includes('duplicate column name')) {
+            res.json({ message: '✅ Column already exists! Database is ready.' });
+        } else if (err) {
+            res.json({ error: err.message });
+        } else {
+            res.json({ message: '✅ Successfully added download_link column!' });
+        }
     });
 });
 
-// Start server
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);
-    console.log('✓ Database schema updated safely - all existing data preserved');
 });
