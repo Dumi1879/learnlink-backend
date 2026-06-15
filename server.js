@@ -152,7 +152,7 @@ app.delete('/api/papers/:id', (req, res) => {
 
 // ============ COMMENT ROUTES ============
 
-// GET all comments for a news post (including replies)
+// GET all comments for a news post
 app.get('/api/comments/:newsId', (req, res) => {
     const { newsId } = req.params;
     db.all(
@@ -174,8 +174,8 @@ app.post('/api/comments', (req, res) => {
     
     db.run(
         `INSERT INTO comments (news_id, parent_id, student_name, student_avatar, comment, likes, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [news_id, parent_id || null, student_name, student_avatar || '', comment, 0, created_at],
+         VALUES (?, ?, ?, ?, ?, 0, ?)`,
+        [news_id, parent_id || null, student_name, student_avatar || '', comment, created_at],
         function(err) {
             if (err) {
                 console.error('Database error:', err);
@@ -187,7 +187,7 @@ app.post('/api/comments', (req, res) => {
     );
 });
 
-// DELETE a comment (cascade will delete replies automatically)
+// DELETE a comment
 app.delete('/api/comments/:id', (req, res) => {
     db.run('DELETE FROM comments WHERE id = ?', req.params.id, function(err) {
         if (err) {
@@ -212,7 +212,6 @@ app.post('/api/comments/like', (req, res) => {
             }
             
             if (row) {
-                // Unlike
                 db.run('DELETE FROM comment_likes WHERE comment_id = ? AND student_name = ?',
                     [comment_id, student_name],
                     (err2) => {
@@ -221,7 +220,6 @@ app.post('/api/comments/like', (req, res) => {
                     }
                 );
             } else {
-                // Like
                 db.run('INSERT INTO comment_likes (comment_id, student_name) VALUES (?, ?)',
                     [comment_id, student_name],
                     (err2) => {
