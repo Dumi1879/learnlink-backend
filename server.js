@@ -64,7 +64,7 @@ db.serialize(() => {
         if (!err && row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
                 ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed!', 'ANNOUNCEMENT', date('now'), 1),
-                ('📚 New Features Added', 'Comments and replies now available!', 'ANNOUNCEMENT', date('now'), 0)
+                ('💬 New Features Added', 'Comments and replies now available!', 'ANNOUNCEMENT', date('now'), 0)
             `);
         }
     });

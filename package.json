@@ -4,12 +4,12 @@
   "description": "LearnLink Backend API",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "npm rebuild sqlite3"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "sqlite3": "^6.0.1",
-    "web-push": "^3.6.7"
+    "sqlite3": "5.1.7",
+    "cors": "^2.8.5"
   }
 }

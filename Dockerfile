@@ -1,14 +1,19 @@
-FROM node:18-alpine
+FROM node:18-slim
 
-WORKDIR /usr/src/app
+WORKDIR /app
+
+# Install build dependencies for sqlite3
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-
-RUN npm install
+RUN npm install --build-from-source
 
 COPY . .
-
-RUN mkdir -p /data
 
 EXPOSE 3000
 
