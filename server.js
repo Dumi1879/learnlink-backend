@@ -37,13 +37,12 @@ db.serialize(() => {
         download_link TEXT
     )`);
 
-    // Comments table with parent_id for nested replies
+    // Comments table - SIMPLIFIED: only name and comment
     db.run(`CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         news_id INTEGER NOT NULL,
         parent_id INTEGER DEFAULT NULL,
         student_name TEXT NOT NULL,
-        student_avatar TEXT,
         comment TEXT NOT NULL,
         likes INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -150,7 +149,7 @@ app.delete('/api/papers/:id', (req, res) => {
     });
 });
 
-// ============ COMMENT ROUTES ============
+// ============ SIMPLIFIED COMMENT ROUTES ============
 
 // GET all comments for a news post
 app.get('/api/comments/:newsId', (req, res) => {
@@ -168,14 +167,14 @@ app.get('/api/comments/:newsId', (req, res) => {
     );
 });
 
-// POST a new comment or reply
+// POST a new comment or reply - SIMPLIFIED (name + comment only)
 app.post('/api/comments', (req, res) => {
-    const { news_id, parent_id, student_name, student_avatar, comment, created_at } = req.body;
+    const { news_id, parent_id, student_name, comment, created_at } = req.body;
     
     db.run(
-        `INSERT INTO comments (news_id, parent_id, student_name, student_avatar, comment, likes, created_at) 
-         VALUES (?, ?, ?, ?, ?, 0, ?)`,
-        [news_id, parent_id || null, student_name, student_avatar || '', comment, created_at],
+        `INSERT INTO comments (news_id, parent_id, student_name, comment, likes, created_at) 
+         VALUES (?, ?, ?, ?, 0, ?)`,
+        [news_id, parent_id || null, student_name, comment, created_at],
         function(err) {
             if (err) {
                 console.error('Database error:', err);
@@ -212,6 +211,7 @@ app.post('/api/comments/like', (req, res) => {
             }
             
             if (row) {
+                // Unlike
                 db.run('DELETE FROM comment_likes WHERE comment_id = ? AND student_name = ?',
                     [comment_id, student_name],
                     (err2) => {
@@ -220,6 +220,7 @@ app.post('/api/comments/like', (req, res) => {
                     }
                 );
             } else {
+                // Like
                 db.run('INSERT INTO comment_likes (comment_id, student_name) VALUES (?, ?)',
                     [comment_id, student_name],
                     (err2) => {
