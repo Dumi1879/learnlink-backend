@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Create data directory for persistent storage
+RUN mkdir -p /data
+
 COPY package*.json ./
 RUN npm install --build-from-source
 
