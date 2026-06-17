@@ -2,7 +2,6 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,23 +11,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ============ PERSISTENT DATABASE SETUP ============
-// Use Render's persistent disk at /data
-const DATA_DIR = process.env.DATA_DIR || '/data';
-const DB_PATH = path.join(DATA_DIR, 'learnlink.db');
+// Database setup
+const db = new sqlite3.Database('./learnlink.db');
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Database connection with persistent storage
-const db = new sqlite3.Database(DB_PATH);
-
-console.log(`📁 Database path: ${DB_PATH}`);
-console.log(`📁 Data directory: ${DATA_DIR}`);
-
-// ============ CREATE TABLES ============
+// Create all tables with proper schema
 db.serialize(() => {
     // News table
     db.run(`CREATE TABLE IF NOT EXISTS news (
@@ -76,14 +62,11 @@ db.serialize(() => {
     db.get(`SELECT COUNT(*) as count FROM news`, (err, row) => {
         if (!err && row && row.count === 0) {
             db.run(`INSERT INTO news (title, content, category, date, isPinned) VALUES 
-                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed with persistent storage!', 'ANNOUNCEMENT', date('now'), 1),
-                ('💬 Comments System Active', 'Students can now comment and reply!', 'ANNOUNCEMENT', date('now'), 0)
+                ('🎓 Welcome to LearnLink!', 'Your app is successfully deployed!', 'ANNOUNCEMENT', date('now'), 1),
+                ('💬 New Features Added', 'Comments and replies now available!', 'ANNOUNCEMENT', date('now'), 0)
             `);
-            console.log('✅ Sample data inserted');
         }
     });
-
-    console.log('✅ Database tables ready');
 });
 
 // ============ API ROUTES ============
@@ -168,7 +151,7 @@ app.delete('/api/papers/:id', (req, res) => {
 
 // ============ COMMENT ROUTES ============
 
-// GET all comments
+// GET all comments for a news post
 app.get('/api/comments/:newsId', (req, res) => {
     const { newsId } = req.params;
     db.all(
@@ -250,11 +233,7 @@ app.post('/api/comments/like', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
-        db_path: DB_PATH,
-        data_dir: DATA_DIR
-    });
+    res.json({ status: 'ok' });
 });
 
 // Fix database endpoint
@@ -271,7 +250,5 @@ app.get('/fix-database', (req, res) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${port}`);
-    console.log(`💾 Database stored at: ${DB_PATH}`);
-    console.log(`📁 Data directory: ${DATA_DIR}`);
+    console.log(`Server running on port ${port}`);
 });
